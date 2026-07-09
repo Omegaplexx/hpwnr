@@ -1,0 +1,190 @@
+name: build-and-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (defaults to the version in Cargo.toml)"
+        required: false
+        type: string
+      draft:
+        description: "Publish as a draft"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+# Manual trigger only. Builds two variants for every supported platform and publishes TWO GitHub Releases:
+# the lite build first (tagged <tag>-lite), then the full build (tagged <tag>) as the latest release.
+#   full  - the complete tool: crypt/decrypt, convert, HTTP fetch, and AES-128-GCM response decryption.
+#   lite  - build with no network stack: crypt/decrypt and convert only. Much smaller, far more portable.
+# full carries a C dependency (ring, via the TLS stack) so it is limited to the targets ring supports; lite has no
+# C deps and reaches more targets. Linux / Windows / Android build through `cross`; macOS and iOS on a macOS runner.
+# Assets are named hpwnr-<platform> (full) and hpwnr-lite-<platform> (lite).
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: v
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            ver=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+            echo "tag=v$ver" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Gate the build matrix on a green clippy and test run for both variants.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Clippy and tests (full)
+        run: |
+          cargo clippy --release --all-targets --locked -- -D warnings
+          cargo test --release --locked
+      - name: Clippy and tests (lite)
+        run: |
+          cargo clippy --release --no-default-features --all-targets --locked -- -D warnings
+          cargo test --release --no-default-features --locked
+
+  build:
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ---- full: Linux / Windows / Android via cross ----
+          - { variant: full, target: x86_64-unknown-linux-musl,      asset: linux-x86_64,   os: ubuntu-latest, tool: cross }
+          - { variant: full, target: i686-unknown-linux-musl,        asset: linux-x86,      os: ubuntu-latest, tool: cross }
+          - { variant: full, target: aarch64-unknown-linux-musl,     asset: linux-arm64,    os: ubuntu-latest, tool: cross }
+          - { variant: full, target: armv7-unknown-linux-musleabihf, asset: linux-armv7,    os: ubuntu-latest, tool: cross }
+          - { variant: full, target: riscv64gc-unknown-linux-musl,   asset: linux-riscv64,  os: ubuntu-latest, tool: cross }
+          - { variant: full, target: x86_64-pc-windows-gnu,          asset: windows-x64,    os: ubuntu-latest, tool: cross, ext: .exe }
+          - { variant: full, target: i686-pc-windows-gnu,            asset: windows-x86,    os: ubuntu-latest, tool: cross, ext: .exe }
+          - { variant: full, target: aarch64-linux-android,          asset: android-arm64,  os: ubuntu-latest, tool: cross }
+          - { variant: full, target: armv7-linux-androideabi,        asset: android-armv7,  os: ubuntu-latest, tool: cross }
+          - { variant: full, target: x86_64-linux-android,           asset: android-x86_64, os: ubuntu-latest, tool: cross }
+          - { variant: full, target: i686-linux-android,             asset: android-x86,    os: ubuntu-latest, tool: cross }
+          # ---- full: macOS / iOS via cargo on a macOS runner ----
+          - { variant: full, target: x86_64-apple-darwin,            asset: macos-x86_64,   os: macos-15,  tool: cargo }
+          - { variant: full, target: aarch64-apple-darwin,           asset: macos-arm64,    os: macos-15,  tool: cargo }
+          - { variant: full, target: aarch64-apple-ios,              asset: ios-arm64,      os: macos-15,  tool: cargo }
+          - { variant: full, target: aarch64-apple-ios-sim,          asset: ios-arm64-sim,  os: macos-15,  tool: cargo }
+          - { variant: full, target: x86_64-apple-ios,               asset: ios-x86_64-sim, os: macos-15,  tool: cargo }
+          # ---- lite: everything full has, plus targets only the pure-Rust build can reach ----
+          - { variant: lite, target: x86_64-unknown-linux-musl,      asset: linux-x86_64,   os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: i686-unknown-linux-musl,        asset: linux-x86,      os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: aarch64-unknown-linux-musl,     asset: linux-arm64,    os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: armv7-unknown-linux-musleabihf, asset: linux-armv7,    os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: arm-unknown-linux-musleabihf,   asset: linux-armv6,    os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: riscv64gc-unknown-linux-musl,   asset: linux-riscv64,  os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: x86_64-pc-windows-gnu,          asset: windows-x64,    os: ubuntu-latest, tool: cross, ext: .exe }
+          - { variant: lite, target: i686-pc-windows-gnu,            asset: windows-x86,    os: ubuntu-latest, tool: cross, ext: .exe }
+          - { variant: lite, target: aarch64-linux-android,          asset: android-arm64,  os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: armv7-linux-androideabi,        asset: android-armv7,  os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: x86_64-linux-android,           asset: android-x86_64, os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: i686-linux-android,             asset: android-x86,    os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: x86_64-apple-darwin,            asset: macos-x86_64,   os: macos-15,  tool: cargo }
+          - { variant: lite, target: aarch64-apple-darwin,           asset: macos-arm64,    os: macos-15,  tool: cargo }
+          - { variant: lite, target: aarch64-apple-ios,              asset: ios-arm64,      os: macos-15,  tool: cargo }
+          - { variant: lite, target: aarch64-apple-ios-sim,          asset: ios-arm64-sim,  os: macos-15,  tool: cargo }
+          - { variant: lite, target: x86_64-apple-ios,               asset: ios-x86_64-sim, os: macos-15,  tool: cargo }
+          - { variant: lite, target: wasm32-wasip1,                  asset: wasm32-wasi,    os: ubuntu-latest, tool: cargo, ext: .wasm }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install cross
+        if: matrix.tool == 'cross'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+      - name: Build
+        shell: bash
+        run: |
+          FEATURES=""
+          [ "${{ matrix.variant }}" = "lite" ] && FEATURES="--no-default-features"
+          ${{ matrix.tool }} build --release --locked $FEATURES --target ${{ matrix.target }}
+      - name: Stage binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          suffix=""
+          [ "${{ matrix.variant }}" = "lite" ] && suffix="-lite"
+          cp "target/${{ matrix.target }}/release/hpwnr${{ matrix.ext }}" "dist/hpwnr${suffix}-${{ matrix.asset }}${{ matrix.ext }}"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: hpwnr${{ matrix.variant == 'lite' && '-lite' || '' }}-${{ matrix.asset }}
+          path: dist/*
+
+  # Publish the lite build first, as its own Release (tagged <tag>-lite, not marked latest).
+  release_lite:
+    needs: [version, check, build]
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: release
+          pattern: hpwnr-lite-*
+          merge-multiple: true
+      - name: Checksums
+        shell: bash
+        run: |
+          cd release
+          ls -la
+          shasum -a 256 * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}-lite
+          name: ${{ needs.version.outputs.tag }}-lite
+          draft: ${{ inputs.draft }}
+          prerelease: false
+          make_latest: "false"
+          generate_release_notes: true
+          files: release/*
+
+  # Then publish the full build as the latest Release. needs release_lite so it is created last.
+  release_full:
+    needs: [version, check, build, release_lite]
+    if: ${{ !cancelled() && needs.check.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: release
+          pattern: hpwnr-*
+          merge-multiple: true
+      - name: Keep only full binaries
+        shell: bash
+        run: rm -f release/hpwnr-lite-*
+      - name: Checksums
+        shell: bash
+        run: |
+          cd release
+          ls -la
+          shasum -a 256 * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
+          draft: ${{ inputs.draft }}
+          prerelease: false
+          make_latest: "true"
+          generate_release_notes: true
+          files: release/*

@@ -1,0 +1,33 @@
+[package]
+name = "hpwnr"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+name = "hpwnr"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hpwnr"
+path = "src/main.rs"
+
+[features]
+default = ["fetch"]
+# fetch pulls in the whole network stack: HTTP fetch (ureq) and AES-128-GCM response decryption (aes-gcm).
+# Building with --no-default-features drops both, leaving a lean "lite" binary without the HTTP fetch/response-decrypt stack.
+fetch = ["dep:ureq", "dep:aes-gcm"]
+
+[dependencies]
+rsa = "0.9.10"
+chacha20poly1305 = "0.10.1"
+base64 = "0.22.1"
+rand = "0.8.5"
+aes-gcm = { version = "0.10.3", optional = true }
+ureq = { version = "2.12", optional = true }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

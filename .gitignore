@@ -1,0 +1,15 @@
+# Rust build artifacts
+/target
+
+# Fetched responses the CLI writes when they exceed 15000 chars (hpwnresp_<domain>.txt)
+hpwnresp_*.txt
+
+# Editor / OS cruft
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+.vscode/
+
+# Cargo.lock is intentionally committed: hpwnr ships binaries and CI builds with --locked.

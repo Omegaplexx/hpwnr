@@ -1,0 +1,42 @@
+# Use cross's up-to-date :main images.
+# The pinned :0.2.5 images are too old for current Rust: their base glibc trips
+# "GLIBC_2.28 not found" on host build scripts, and their Android NDK can't link
+# libunwind ("cannot find -lunwind"). The :main images carry a newer glibc and NDK.
+# riscv64gc-musl has no :0.2.5 image at all (added to cross later), so it needs :main too.
+# Targets here mirror the cross targets in the CI workflows exactly (macOS/iOS build with cargo, not cross).
+
+[target.x86_64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl:main"
+
+[target.i686-unknown-linux-musl]
+image = "ghcr.io/cross-rs/i686-unknown-linux-musl:main"
+
+[target.aarch64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:main"
+
+[target.armv7-unknown-linux-musleabihf]
+image = "ghcr.io/cross-rs/armv7-unknown-linux-musleabihf:main"
+
+[target.arm-unknown-linux-musleabihf]
+image = "ghcr.io/cross-rs/arm-unknown-linux-musleabihf:main"
+
+[target.riscv64gc-unknown-linux-musl]
+image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-musl:main"
+
+[target.x86_64-pc-windows-gnu]
+image = "ghcr.io/cross-rs/x86_64-pc-windows-gnu:main"
+
+[target.i686-pc-windows-gnu]
+image = "ghcr.io/cross-rs/i686-pc-windows-gnu:main"
+
+[target.aarch64-linux-android]
+image = "ghcr.io/cross-rs/aarch64-linux-android:main"
+
+[target.armv7-linux-androideabi]
+image = "ghcr.io/cross-rs/armv7-linux-androideabi:main"
+
+[target.x86_64-linux-android]
+image = "ghcr.io/cross-rs/x86_64-linux-android:main"
+
+[target.i686-linux-android]
+image = "ghcr.io/cross-rs/i686-linux-android:main"

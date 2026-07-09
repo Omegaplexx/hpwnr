@@ -1,0 +1,8 @@
+# Static CRT for Windows so the .exe is self-contained (no libgcc/winpthread DLLs).
+# musl Linux targets are statically linked by default; Android links bionic (always
+# present on device), so it needs nothing here.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.i686-pc-windows-gnu]
+rustflags = ["-C", "target-feature=+crt-static"]
