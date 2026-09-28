@@ -53,18 +53,18 @@ pub const V2_KEYS: &[(&str, &str)] = &[
     ("key3", "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"),
 ];
 
-// 16-byte AES-128-GCM keys (ASCII of "keyNN:...."), for subscription-body decryption
+// 16-byte AES-128-GCM keys, for subscription-body decryption
 #[cfg(feature = "fetch")]
 pub const AES_GCM_KEYS: &[(&str, [u8; 16])] = &[
-    ("key01", [0x6b, 0x65, 0x79, 0x30, 0x31, 0x3a, 0x33, 0x6a, 0x6b, 0x23, 0x52, 0x32, 0x64, 0x26, 0x44, 0x64]),
-    ("key02", [0x6b, 0x65, 0x79, 0x30, 0x32, 0x3a, 0x2b, 0x5d, 0x25, 0x34, 0x69, 0x6a, 0x23, 0x50, 0x22, 0x2f]),
-    ("key03", [0x6b, 0x65, 0x79, 0x30, 0x33, 0x3a, 0x3f, 0x26, 0x59, 0x4e, 0x67, 0x2f, 0x22, 0x4c, 0x33, 0x7d]),
-    ("key04", [0x6b, 0x65, 0x79, 0x30, 0x34, 0x3a, 0x2b, 0x2d, 0x34, 0x62, 0x22, 0x2d, 0x3f, 0x53, 0x24, 0x7b]),
-    ("key05", [0x6b, 0x65, 0x79, 0x30, 0x35, 0x3a, 0x4e, 0x35, 0x3c, 0x61, 0x2f, 0x28, 0x7e, 0x6a, 0x4a, 0x27]),
-    ("key06", [0x6b, 0x65, 0x79, 0x30, 0x36, 0x3a, 0x73, 0x35, 0x5c, 0x5b, 0x22, 0x3d, 0x60, 0x75, 0x43, 0x2f]),
-    ("key07", [0x6b, 0x65, 0x79, 0x30, 0x37, 0x3a, 0x28, 0x48, 0x2b, 0x62, 0x27, 0x27, 0x29, 0x5f, 0x40, 0x35]),
-    ("key08", [0x6b, 0x65, 0x79, 0x30, 0x38, 0x3a, 0x57, 0x27, 0x3d, 0x29, 0x5b, 0x2f, 0x7e, 0x69, 0x39, 0x77]),
-    ("key09", [0x6b, 0x65, 0x79, 0x30, 0x39, 0x3a, 0x27, 0x32, 0x25, 0x60, 0x43, 0x7e, 0x3e, 0x29, 0x5f, 0x64]),
-    ("key10", [0x6b, 0x65, 0x79, 0x31, 0x30, 0x3a, 0x29, 0x5c, 0x27, 0x68, 0x5d, 0x2a, 0x23, 0x37, 0x4d, 0x50]),
-    ("key11", [0x6b, 0x65, 0x79, 0x31, 0x31, 0x3a, 0x38, 0x63, 0x7a, 0x75, 0x28, 0x22, 0x40, 0x69, 0x4e, 0x63]),
+    ("key01", *b"key01:3jk#R2d&Dd"),
+    ("key02", *b"key02:+]%4ij#P\"/"),
+    ("key03", *b"key03:?&YNg/\"L3}"),
+    ("key04", *b"key04:+-4b\"-?S${"),
+    ("key05", *b"key05:N5<a/(~jJ'"),
+    ("key06", *b"key06:s5\\[\"=`uC/"),
+    ("key07", *b"key07:(H+b'')_@5"),
+    ("key08", *b"key08:W'=)[/~i9w"),
+    ("key09", *b"key09:'2%`C~>)_d"),
+    ("key10", *b"key10:)\\'h]*#7MP"),
+    ("key11", *b"key11:8czu(\"@iNc"),
 ];

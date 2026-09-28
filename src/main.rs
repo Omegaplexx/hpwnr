@@ -58,8 +58,8 @@ FETCH:
   hpwnr happ://… hwid abc123 ua "My/Custom/UA"
 
 USER-AGENT ALIASES:
-  happ → Happ/3.26.1
-  incy → INCY/3.3.1
+  happ → Happ/4.6.0
+  incy → INCY/3.7.0
   v2 / v2r / v2ray / v2raytun → v2raytun/android
 
 ── Convert ────────────────────────

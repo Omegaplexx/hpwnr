@@ -924,8 +924,8 @@ fn extract_embedded_depth(raw: &str, scheme: &str, depth: usize) -> Option<Strin
 #[cfg(feature = "fetch")]
 fn resolve_ua(ua: &str) -> String {
     match ua.to_lowercase().as_str() {
-        "happ" => "Happ/3.26.1".to_string(),
-        "incy" => "INCY/3.3.1".to_string(),
+        "happ" => "Happ/4.6.0".to_string(),
+        "incy" => "INCY/3.7.0".to_string(),
         "v2raytun" | "v2r" | "v2ray" | "v2" => "v2raytun/android".to_string(),
         _ => ua.to_string(),
     }
