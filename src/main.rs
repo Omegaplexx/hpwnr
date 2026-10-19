@@ -598,7 +598,7 @@ fn run() -> i32 {
     if p.v2mode {
         if p.texts.len() == 1 {
             let norm = unwrap_link(p.texts[0].trim());
-            if matches!(inspect(&norm).kind, LinkKind::v2RayTun) {
+            if matches!(inspect(&norm).kind, LinkKind::V2RayTun) {
                 match decrypt_link(&norm) {
                     Ok(Some(plain)) => {
                         println!("{plain}");

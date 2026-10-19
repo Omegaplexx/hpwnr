@@ -203,7 +203,7 @@ pub enum LinkKind {
     /// A happ://cryptN/ link in the given mode.
     Happ(HappMode),
     /// A v2raytun://crypt/ link.
-    v2RayTun,
+    V2RayTun,
     /// Not a recognized encrypted link.
     Plain,
 }
@@ -1212,7 +1212,7 @@ pub fn encrypt_v2(key: V2Key, plaintext: &str) -> Result<String> {
 /// ```
 pub fn inspect(s: &str) -> InputInfo {
     if let Some(rest) = strip_prefix_ci(s, V2_PREFIX) {
-        return InputInfo { kind: LinkKind::v2RayTun, payload_len: rest.len(), crypt5_marker: None };
+        return InputInfo { kind: LinkKind::V2RayTun, payload_len: rest.len(), crypt5_marker: None };
     }
     for &(prefix, ordinal) in &HAPP_PREFIXES {
         if let Some(rest) = strip_prefix_ci(s, prefix) {
