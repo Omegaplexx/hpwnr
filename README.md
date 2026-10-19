@@ -1,6 +1,6 @@
 # hpwnr
 
-Command-line version of [Happwner](https://github.com/Omegaplexx/Happwner). A **Happ** and **V2RayTun** subscription-link decryptor/encryptor that can fetch, decrypt, encrypt, and convert proxy profiles. It is available as both a CLI tool and a Rust library, built on a from-scratch reimplementation of the Happ and V2RayTun crypto.
+Command-line version of [Happwner](https://github.com/Omegaplexx/Happwner). A **Happ** and **v2RayTun** subscription-link decryptor/encryptor that can fetch, decrypt, encrypt, and convert proxy profiles. It is available as both a CLI tool and a Rust library, built on a from-scratch reimplementation of the Happ and v2RayTun crypto.
 
 Developed by slavrom21 & Omegaplex
 
@@ -40,8 +40,8 @@ Use `h` or `help` to show the help page. The argument order and leading hyphens 
 
 * `https://…` - a regular HTTPS URL
 * `happ://crypt…` - an encrypted Happ link
-* `v2raytun://crypt/…` - an encrypted V2RayTun link
-* `happ://add…`, `v2raytun://import…`, `incy://add…`, `incy://import…` - the Happ/V2RayTun/INCY "open-in" deeplinks
+* `v2raytun://crypt/…` - an encrypted v2RayTun link
+* `happ://add…`, `v2raytun://import…`, `incy://add…`, `incy://import…` - the Happ/v2RayTun/INCY "open-in" deeplinks
 * `https://somesite.com/happ%3A%2F%2Fcrypt…` - an encrypted Happ link embedded in an HTTPS URL
 * `https://somesite.com/mysub?key=key[01-10]` - a URL with a `key` parameter. In fetch mode, if the server returns an `Encrypt-Tag` header, the response body is decrypted automatically (AES-128-GCM) with that key
 
@@ -56,7 +56,7 @@ No arguments needed. Use `hpwnr <crypt link>` to decrypt.
 * `crypt` / `crypt[2-5]` - encrypt the given text into the matching `happ://crypt*` format. `crypt5` is the default. Works only with decrypted text
 * `crypt5old` / `crypt5legacy` - encrypt with the legacy `crypt5` layout; plain `crypt5` uses the new salted+XOR layout. Both decrypt automatically
 * `v2` / `v2r` / `v2ray` / `v2raytun` - encrypt into `v2raytun://crypt` format. The default key is `crypt3`. Works only with decrypted text
-* `crypt3` / `crypt4` / `key3` - pick the V2RayTun key (use after the `v2` argument)
+* `crypt3` / `crypt4` / `key3` - pick the v2RayTun key (use after the `v2` argument)
 
 #### Fetching
 
@@ -94,7 +94,7 @@ Combine `sb` and `uri` to get only sing-box-compatible URIs: unsupported outboun
 hpwnr happ://crypt5/…
 hpwnr happ://crypt4/…
 
-# V2RayTun
+# v2RayTun
 hpwnr v2raytun://crypt/…
 ```
 
@@ -106,7 +106,7 @@ hpwnr https://example.com/sub
 hpwnr https://example.com/sub crypt4
 hpwnr https://example.com/sub crypt5old   # legacy crypt5 layout
 
-# V2RayTun (crypt3 by default, or pick a key)
+# v2RayTun (crypt3 by default, or pick a key)
 hpwnr https://example.com/sub v2
 hpwnr https://example.com/sub v2r crypt4
 ```
@@ -303,4 +303,4 @@ Any language that can spawn a process and read stdout works the same way (Go `os
 
 ## License
 
-Provided as is, without warranty. Use it only for legal analysis, interoperability, research, and education, and only with data you are entitled to access. Happ, V2RayTun, and related names may be protected by third-party rights; this project is not affiliated with their owners.
+Provided as is, without warranty. Use it only for legal analysis, interoperability, research, and education, and only with data you are entitled to access. Happ, v2RayTun, and related names may be protected by third-party rights; this project is not affiliated with their owners.
