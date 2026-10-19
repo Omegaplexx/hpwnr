@@ -8,10 +8,10 @@ use hpwnr::{
 #[cfg(feature = "fetch")]
 mod psl;
 
-const SHORT_DESC: &str = "Tool to decrypt/encrypt Happ and V2RayTun links.";
+const SHORT_DESC: &str = "Tool to decrypt/encrypt Happ and v2RayTun links.";
 
 #[cfg(feature = "fetch")]
-const FULL_HELP: &str = concat!("hpwnr v", env!("CARGO_PKG_VERSION"), "\n\n", r#"Happ and V2RayTun subscription-link decryptor/encryptor that can fetch, decrypt, encrypt, and convert proxy profiles.
+const FULL_HELP: &str = concat!("hpwnr v", env!("CARGO_PKG_VERSION"), "\n\n", r#"Happ and v2RayTun subscription-link decryptor/encryptor that can fetch, decrypt, encrypt, and convert proxy profiles.
 
 Developed by slavrom21 & Omegaplex
 https://github.com/Omegaplexx/hpwnr
@@ -33,7 +33,7 @@ KEYS:
 
 crypt5 uses a new salted+XOR layout; crypt5old is the legacy one. Both decrypt automatically.
 
-── V2RayTun ───────────────────────
+── v2RayTun ───────────────────────
 DECRYPT:
   hpwnr v2raytun://crypt/…
   hpwnr v2raytun://import/…
@@ -86,7 +86,7 @@ If the decrypted URL carries ?key=keyNN and the server returns an Encrypt-Tag he
 If the server response is more than 15000 characters, it is saved to hpwnresp_<domain>.txt, overwritten each run; otherwise it is printed.
 Converting a file writes a copy: <name>_<mode>.<ext> where <mode> is sb, uri, b64, or sb+uri, replacing any existing suffix.
 
-URL-encoded, Base64-encoded and wrapped Happ/V2RayTun links inside HTTPS URLs are resolved automatically.
+URL-encoded, Base64-encoded and wrapped Happ/v2RayTun links inside HTTPS URLs are resolved automatically.
   happ://add/https%3A%2F%2F…
   v2raytun://import/https%3A%2F%2F…
   https://…happ://…
@@ -95,7 +95,7 @@ will be converted to
   https://…"#);
 
 #[cfg(not(feature = "fetch"))]
-const FULL_HELP: &str = concat!("hpwnr lite v", env!("CARGO_PKG_VERSION"), "\n\n", r#"Happ and V2RayTun subscription-link decryptor/encryptor with proxy config conversion.
+const FULL_HELP: &str = concat!("hpwnr lite v", env!("CARGO_PKG_VERSION"), "\n\n", r#"Happ and v2RayTun subscription-link decryptor/encryptor with proxy config conversion.
 
 Developed by slavrom21 & Omegaplex
 https://github.com/Omegaplexx/hpwnr
@@ -117,7 +117,7 @@ KEYS:
 
 crypt5 uses a new salted+XOR layout; crypt5old is the legacy one. Both decrypt automatically.
 
-── V2RayTun ───────────────────────
+── v2RayTun ───────────────────────
 DECRYPT:
   hpwnr v2raytun://crypt/…
   hpwnr v2raytun://import/…
@@ -148,7 +148,7 @@ Combine the sb and uri flags to output only sing-box-compatible links.
 ───────────────────────────────────
 Converting a file writes a copy: <name>_<mode>.<ext> where <mode> is sb, uri, b64, or sb+uri, replacing any existing suffix.
 
-URL-encoded, Base64-encoded and wrapped Happ/V2RayTun links inside HTTPS URLs are resolved automatically.
+URL-encoded, Base64-encoded and wrapped Happ/v2RayTun links inside HTTPS URLs are resolved automatically.
   happ://add/https%3A%2F%2F…
   v2raytun://import/https%3A%2F%2F…
   https://…happ://…
@@ -598,7 +598,7 @@ fn run() -> i32 {
     if p.v2mode {
         if p.texts.len() == 1 {
             let norm = unwrap_link(p.texts[0].trim());
-            if matches!(inspect(&norm).kind, LinkKind::V2RayTun) {
+            if matches!(inspect(&norm).kind, LinkKind::v2RayTun) {
                 match decrypt_link(&norm) {
                     Ok(Some(plain)) => {
                         println!("{plain}");

@@ -1,4 +1,4 @@
-//! Happ and V2RayTun subscription-link decryptor/encryptor that can fetch, decrypt, encrypt, and convert proxy profiles.
+//! Happ and v2RayTun subscription-link decryptor/encryptor that can fetch, decrypt, encrypt, and convert proxy profiles.
 //!
 //! This crate reads `happ://` and `v2raytun://` links back to their plaintext URLs, builds
 //! fresh links from a URL, and converts Xray configs into sing-box configs or proxy URIs.
@@ -78,14 +78,14 @@ pub enum Error {
     UnknownCrypt5Marker(String),
     /// No embedded key matched the given name.
     UnknownKey(String),
-    /// Plaintext is too large for a single V2RayTun RSA block.
+    /// Plaintext is too large for a single v2RayTun RSA block.
     V2TooLong {
         /// Length of the plaintext in bytes.
         len: usize,
         /// Maximum bytes that fit in one RSA block.
         max: usize,
     },
-    /// Could not produce a clean V2RayTun link within the retry budget.
+    /// Could not produce a clean v2RayTun link within the retry budget.
     V2NoCleanLink,
     /// HTTP request failed.
     #[cfg(feature = "fetch")]
@@ -166,7 +166,7 @@ impl HappMode {
     }
 }
 
-/// V2RayTun key choice.
+/// v2RayTun key choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum V2Key {
     /// crypt3 (default).
@@ -203,7 +203,7 @@ pub enum LinkKind {
     /// A happ://cryptN/ link in the given mode.
     Happ(HappMode),
     /// A v2raytun://crypt/ link.
-    V2RayTun,
+    v2RayTun,
     /// Not a recognized encrypted link.
     Plain,
 }
@@ -1139,10 +1139,10 @@ pub fn resolve_and_decrypt(input: &str) -> Result<Option<String>> {
     decrypt_link(&unwrap_link(input))
 }
 
-/// Decrypts a V2RayTun payload, the part of a `v2raytun://crypt/` link after the prefix.
+/// Decrypts a v2RayTun payload, the part of a `v2raytun://crypt/` link after the prefix.
 ///
 /// Several keys are tried in turn; since RSA PKCS#1 v1.5 has no authentication tag, a decryption is
-/// accepted only when it looks like a `scheme://` link, which real V2RayTun subscriptions always are.
+/// accepted only when it looks like a `scheme://` link, which real v2RayTun subscriptions always are.
 ///
 /// # Errors
 ///
@@ -1212,7 +1212,7 @@ pub fn encrypt_v2(key: V2Key, plaintext: &str) -> Result<String> {
 /// ```
 pub fn inspect(s: &str) -> InputInfo {
     if let Some(rest) = strip_prefix_ci(s, V2_PREFIX) {
-        return InputInfo { kind: LinkKind::V2RayTun, payload_len: rest.len(), crypt5_marker: None };
+        return InputInfo { kind: LinkKind::v2RayTun, payload_len: rest.len(), crypt5_marker: None };
     }
     for &(prefix, ordinal) in &HAPP_PREFIXES {
         if let Some(rest) = strip_prefix_ci(s, prefix) {
