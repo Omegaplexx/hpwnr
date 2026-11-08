@@ -245,52 +245,50 @@ fn process_json_one(ob: &Json, rem: &str) -> Option<String> {
 // Split those into independent outbound values so every usable endpoint becomes a URI.
 fn process_json_outbound_all(ob: &Json, rem: &str, res: &mut Vec<String>) {
     let protocol = ob.opt_str("protocol", &ob.opt_str("type", ""));
-    if matches!(protocol.as_str(), "vless" | "vmess") {
-        if let Some(settings) = ob.opt_obj("settings") {
-            if let Some(vnext) = settings.opt_arr("vnext") {
-                for vn in vnext.arr_items() {
-                    if let Some(users) = vn.opt_arr("users") {
-                        for user in users.arr_items() {
-                            let mut one_vn = vn.clone();
-                            one_vn.set("users", Json::Arr(vec![user.clone()]));
-                            let mut one_settings = settings.clone();
-                            one_settings.set("vnext", Json::Arr(vec![one_vn]));
-                            let mut one_outbound = ob.clone();
-                            one_outbound.set("settings", one_settings);
-                            if let Some(uri) = process_json_one(&one_outbound, rem) {
-                                res.push(uri);
-                            }
-                        }
-                    } else {
-                        let mut one_settings = settings.clone();
-                        one_settings.set("vnext", Json::Arr(vec![vn.clone()]));
-                        let mut one_outbound = ob.clone();
-                        one_outbound.set("settings", one_settings);
-                        if let Some(uri) = process_json_one(&one_outbound, rem) {
-                            res.push(uri);
-                        }
-                    }
-                }
-                return;
-            }
-        }
-    }
-
-    if matches!(protocol.as_str(), "shadowsocks" | "trojan" | "hysteria2") {
-        if let Some(settings) = ob.opt_obj("settings") {
-            if let Some(servers) = settings.opt_arr("servers") {
-                for server in servers.arr_items() {
+    if matches!(protocol.as_str(), "vless" | "vmess")
+        && let Some(settings) = ob.opt_obj("settings")
+        && let Some(vnext) = settings.opt_arr("vnext")
+    {
+        for vn in vnext.arr_items() {
+            if let Some(users) = vn.opt_arr("users") {
+                for user in users.arr_items() {
+                    let mut one_vn = vn.clone();
+                    one_vn.set("users", Json::Arr(vec![user.clone()]));
                     let mut one_settings = settings.clone();
-                    one_settings.set("servers", Json::Arr(vec![server.clone()]));
+                    one_settings.set("vnext", Json::Arr(vec![one_vn]));
                     let mut one_outbound = ob.clone();
                     one_outbound.set("settings", one_settings);
                     if let Some(uri) = process_json_one(&one_outbound, rem) {
                         res.push(uri);
                     }
                 }
-                return;
+            } else {
+                let mut one_settings = settings.clone();
+                one_settings.set("vnext", Json::Arr(vec![vn.clone()]));
+                let mut one_outbound = ob.clone();
+                one_outbound.set("settings", one_settings);
+                if let Some(uri) = process_json_one(&one_outbound, rem) {
+                    res.push(uri);
+                }
             }
         }
+        return;
+    }
+
+    if matches!(protocol.as_str(), "shadowsocks" | "trojan" | "hysteria2")
+        && let Some(settings) = ob.opt_obj("settings")
+        && let Some(servers) = settings.opt_arr("servers")
+    {
+        for server in servers.arr_items() {
+            let mut one_settings = settings.clone();
+            one_settings.set("servers", Json::Arr(vec![server.clone()]));
+            let mut one_outbound = ob.clone();
+            one_outbound.set("settings", one_settings);
+            if let Some(uri) = process_json_one(&one_outbound, rem) {
+                res.push(uri);
+            }
+        }
+        return;
     }
 
     if let Some(uri) = process_json_one(ob, rem) {
@@ -599,10 +597,10 @@ fn build_xray_hysteria2(ob: &Json, rem: &str) -> Option<String> {
         if !sni.is_empty() {
             query.push(("sni".to_string(), sni));
         }
-        if let Some(alpn) = tls.opt_arr("alpn") {
-            if let Some(Json::Str(first)) = alpn.arr_items().first() {
-                query.push(("alpn".to_string(), first.clone()));
-            }
+        if let Some(alpn) = tls.opt_arr("alpn")
+            && let Some(Json::Str(first)) = alpn.arr_items().first()
+        {
+            query.push(("alpn".to_string(), first.clone()));
         }
         if tls.opt_bool("allowInsecure", false) {
             query.push(("insecure".to_string(), "1".to_string()));

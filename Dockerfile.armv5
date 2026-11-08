@@ -1,0 +1,26 @@
+# Static full hpwnr build for ARMv5TE / musl / soft-float.
+# Build from the current checkout:
+#   docker buildx build --target export --output type=local,dest=./dist -f Dockerfile.armv5 .
+
+FROM ghcr.io/rust-cross/rust-musl-cross:armv5te-musleabi AS builder
+
+WORKDIR /tmp/hpwnr-src
+COPY Cargo.toml Cargo.lock ./
+COPY .cargo ./.cargo
+COPY src ./src
+
+RUN cargo build --release --target armv5te-unknown-linux-musleabi
+
+RUN set -eux; \
+    BIN="target/armv5te-unknown-linux-musleabi/release/hpwnr"; \
+    test -x "$BIN"; \
+    mkdir -p /out; \
+    cp "$BIN" /out/hpwnr; \
+    readelf -l /out/hpwnr > /tmp/phdr.txt; \
+    ! grep -q 'INTERP' /tmp/phdr.txt; \
+    readelf -d /out/hpwnr > /tmp/dynamic.txt 2>&1 || true; \
+    ! grep -q '(NEEDED)' /tmp/dynamic.txt; \
+    chmod 755 /out/hpwnr
+
+FROM scratch AS export
+COPY --from=builder /out/hpwnr /hpwnr-linux-armv5
