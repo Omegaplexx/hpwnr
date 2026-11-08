@@ -68,6 +68,7 @@ A link is fetched when you pass `fetch`, `hwid`, `ua`, or `header`, or when a co
 * `hwid <value>` - fetch and send the `X-HWID` header. Usually paired with `ua`
 * `ua <happ / incy / v2 / "MyCustomUA">` - fetch and send the `User-Agent` header. Aliases: `happ` → `Happ/4.6.0`, `incy` → `INCY/3.7.0`, `v2` / `v2r` / `v2ray` / `v2raytun` → `v2raytun/android`
 * `header <name> <value>` - add any HTTP request header. Repeat it to send multiple headers, e.g. `header X-Device-Model "Pixel 8" header X-Device-OS Android`. Custom header entries are sent after the built-in `ua`/`hwid` entries.
+* `stdout` - always print fetched output to the console, even when it exceeds 15000 characters; without this flag, large outputs are saved to a file.
 
 #### Conversion
 
@@ -82,7 +83,7 @@ Combine `sb` and `uri` to get only sing-box-compatible URIs: unsupported outboun
 
 #### Output
 
-* A fetched response prints when it is small; over 15000 characters it is written to `hpwnresp_<domain>.txt` instead, overwritten on each run.
+* A fetched response prints when it is small; over 15000 characters it is written to `hpwnresp_<domain>.txt` instead, overwritten on each run. Add `stdout` to always print fetched output.
 * Converting a local file writes a sibling copy `<name>_<mode>.<ext>`, where `<mode>` is `sb`, `uri`, `b64`, or `sb+uri`, replacing any existing mode suffix.
 * Everything else (decryption, encryption, stdin conversion, small responses) prints to stdout.
 
@@ -119,6 +120,7 @@ hpwnr https://example.com/sub fetch
 hpwnr https://example.com/sub hwid abc123
 hpwnr https://example.com/sub hwid abc123 ua happ
 hpwnr https://example.com/sub ua "Happ/4.8.0/Android/17921395329952009531" header x-device-os Android header x-ver-os 17 header x-device-model WKL-AN80 header x-device-locale ru uri
+hpwnr https://example.com/sub uri stdout
 ```
 
 #### Conversion
@@ -164,7 +166,7 @@ Two manual GitHub Actions workflows build both variants for all of these targets
 
 ```toml
 [dependencies]
-hpwnr = "1.0.4"
+hpwnr = "1.0.3"
 ```
 
 ```rust
@@ -200,7 +202,7 @@ The `fetch`, `fetch_with_headers`, and `decrypt_response_body` functions, along 
 
 ```toml
 [dependencies]
-hpwnr = { version = "1.0.4", default-features = false }
+hpwnr = { version = "1.0.3", default-features = false }
 ```
 
 Every public item is documented; run `cargo doc --open` for the full API reference.
@@ -218,7 +220,7 @@ hpwnr ships as a Rust library, but the CLI binary doubles as a language-agnostic
 * Errors are written to **stderr**, prefixed with `error:`, with **exit code 1**; success is exit code 0.
 * Pass each link/value as one argument, and prefer the argv/exec form (arrays, `ProcessBuilder`, `ArgumentList`) over a shell command string so that `?`, `&`, and `%` inside URLs need no escaping.
 * Convert a blob you already have by piping it to stdin: `… | hpwnr sb`.
-* One exception to stdout: a *fetched* response over 15000 characters is written to `hpwnresp_<domain>.txt` in the working directory (the path is echoed to stderr as `saved to: …`) instead of stdout. Decrypt, encrypt, and local/stdin conversion always print to stdout.
+* By default, a *fetched* response over 15000 characters is written to `hpwnresp_<domain>.txt` in the working directory (the path is echoed to stderr as `saved to: …`). Pass `stdout` to print it instead. Decrypt, encrypt, and local/stdin conversion print to stdout.
 
 **Python**
 

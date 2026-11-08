@@ -247,7 +247,7 @@ dependencies = [
 
 [[package]]
 name = "hpwnr"
-version = "1.0.4"
+version = "1.0.3"
 dependencies = [
  "aes-gcm",
  "base64",

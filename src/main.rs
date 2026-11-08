@@ -55,8 +55,11 @@ FETCH:
   hpwnr https://… hwid 123abc
   hpwnr https://… hwid 123abc ua happ
   hpwnr https://… header X-Device-Model "Pixel 8" header X-Device-OS Android
+  hpwnr https://… uri stdout
   hpwnr v2raytun://… hwid abc123 ua v2ray
   hpwnr happ://… hwid abc123 ua "My/Custom/UA"
+
+stdout always prints fetched output to the console, even when it exceeds 15000 characters.
 
 USER-AGENT ALIASES:
   happ → Happ/4.6.0
@@ -84,7 +87,7 @@ Combine the sb and uri flags to output only sing-box-compatible links.
 ───────────────────────────────────
 If the decrypted URL carries ?key=keyNN and the server returns an Encrypt-Tag header, the response body is decrypted automatically (AES-128-GCM).
 
-If the server response is more than 15000 characters, it is saved to hpwnresp_<domain>.txt, overwritten each run; otherwise it is printed.
+If fetched output is more than 15000 characters, it is saved to hpwnresp_<domain>.txt, overwritten each run; add stdout to always print it instead.
 Converting a file writes a copy: <name>_<mode>.<ext> where <mode> is sb, uri, b64, or sb+uri, replacing any existing suffix.
 
 URL-encoded, Base64-encoded and wrapped Happ/v2RayTun links inside HTTPS URLs are resolved automatically.
@@ -196,6 +199,8 @@ struct ParsedArgs {
     headers: Vec<(String, String)>,
     #[cfg(feature = "fetch")]
     fetch: bool,
+    #[cfg(feature = "fetch")]
+    stdout: bool,
     conv: Option<ConvertMode>,
 }
 
@@ -214,6 +219,8 @@ fn parse_all_args(args: &[String]) -> ParsedArgs {
         headers: Vec::new(),
         #[cfg(feature = "fetch")]
         fetch: false,
+        #[cfg(feature = "fetch")]
+        stdout: false,
         conv: None,
     };
     // First pass: v2 mode changes how crypt3/crypt4/key3 map to keys
@@ -258,6 +265,11 @@ fn parse_all_args(args: &[String]) -> ParsedArgs {
             #[cfg(feature = "fetch")]
             "fetch" => {
                 p.fetch = true;
+                i += 1;
+            }
+            #[cfg(feature = "fetch")]
+            "stdout" => {
+                p.stdout = true;
                 i += 1;
             }
             "v2" | "v2r" | "v2ray" | "v2raytun" => {
@@ -522,7 +534,7 @@ fn run() -> i32 {
                 let output = apply_conv_mode(&body, mode);
                 // Large results go to one file per domain (overwritten each run); smaller ones print.
                 const MAX_INLINE: usize = 15000;
-                if output.len() > MAX_INLINE {
+                if output.len() > MAX_INLINE && !p.stdout {
                     let fname = fetch_file_name(&target);
                     if let Err(e) = std::fs::write(&fname, &output) {
                         eprintln!("error: could not write file: {e}");
