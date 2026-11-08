@@ -20,6 +20,9 @@ image = "ghcr.io/cross-rs/armv7-unknown-linux-musleabihf:main"
 [target.arm-unknown-linux-musleabihf]
 image = "ghcr.io/cross-rs/arm-unknown-linux-musleabihf:main"
 
+[target.armv5te-unknown-linux-musleabi]
+image = "ghcr.io/cross-rs/armv5te-unknown-linux-musleabi:main"
+
 [target.riscv64gc-unknown-linux-musl]
 image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-musl:main"
 

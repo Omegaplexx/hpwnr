@@ -920,12 +920,13 @@ fn extract_embedded_depth(raw: &str, scheme: &str, depth: usize) -> Option<Strin
     Some(decoded)
 }
 
-// Resolve a User-Agent alias (happ, v2, etc.) to its full string, or pass a custom one through
+/// Resolves a User-Agent alias (`happ`, `incy`, `v2`, etc.) or passes a custom value through.
+/// Available with the `fetch` feature.
 #[cfg(feature = "fetch")]
-fn resolve_ua(ua: &str) -> String {
+pub fn resolve_user_agent(ua: &str) -> String {
     match ua.to_lowercase().as_str() {
-        "happ" => "Happ/4.6.0".to_string(),
-        "incy" => "INCY/3.7.0".to_string(),
+        "happ" => "Happ/4.10.1".to_string(),
+        "incy" => "INCY/3.9.9".to_string(),
         "v2raytun" | "v2r" | "v2ray" | "v2" => "v2raytun/android".to_string(),
         _ => ua.to_string(),
     }
@@ -1248,27 +1249,18 @@ pub fn decrypt_response_body(url: &str, body: Vec<u8>, encrypt_tag: Option<&str>
     }
 }
 
-/// Fetches a subscription over HTTP, sending `user_agent` and `hwid` as headers when they are
-/// non-empty, and stripping any AES-128-GCM layer from the response.
-///
-/// Both `user_agent` and `hwid` are optional; pass empty strings to send neither header.
+/// Fetches a subscription over HTTP with arbitrary request headers and strips any AES-128-GCM layer.
+/// Header names and values are passed to the HTTP client in the order supplied.
 /// Available with the `fetch` feature.
-///
-/// # Errors
-///
-/// Returns [`Error::Http`] when the request fails.
 #[cfg(feature = "fetch")]
-pub fn fetch(url: &str, user_agent: &str, hwid: &str) -> Result<Vec<u8>> {
+pub fn fetch_with_headers(url: &str, headers: &[(String, String)]) -> Result<Vec<u8>> {
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(std::time::Duration::from_secs(15))
         .timeout_read(std::time::Duration::from_secs(30))
         .build();
     let mut req = agent.get(url);
-    if !user_agent.is_empty() {
-        req = req.set("User-Agent", &resolve_ua(user_agent));
-    }
-    if !hwid.is_empty() {
-        req = req.set("X-HWID", hwid);
+    for (name, value) in headers {
+        req = req.set(name, value);
     }
     let resp = match req.call() {
         Ok(r) => r,
@@ -1279,4 +1271,18 @@ pub fn fetch(url: &str, user_agent: &str, hwid: &str) -> Result<Vec<u8>> {
     let mut body = Vec::new();
     resp.into_reader().read_to_end(&mut body).map_err(|e| Error::Http(e.to_string()))?;
     Ok(decrypt_response_body(url, body, tag.as_deref()))
+}
+
+/// Fetches a subscription using the legacy User-Agent and X-HWID arguments.
+/// Empty strings omit the corresponding header. Available with the `fetch` feature.
+#[cfg(feature = "fetch")]
+pub fn fetch(url: &str, user_agent: &str, hwid: &str) -> Result<Vec<u8>> {
+    let mut headers = Vec::new();
+    if !user_agent.is_empty() {
+        headers.push(("User-Agent".to_string(), resolve_user_agent(user_agent)));
+    }
+    if !hwid.is_empty() {
+        headers.push(("X-HWID".to_string(), hwid.to_string()));
+    }
+    fetch_with_headers(url, &headers)
 }

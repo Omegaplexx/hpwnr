@@ -1,5 +1,6 @@
 use crate::json::{parse_whole, stringify_compact, Json};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use std::collections::HashSet;
 
 const PROXY_SCHEMES: [&str; 13] = [
     "vless://", "vmess://", "trojan://", "ss://", "ssr://", "hysteria://", "hysteria2://",
@@ -65,38 +66,37 @@ pub fn convert(input: &str, ops: ConvertOps) -> String {
     .0
 }
 
-// Emit a parsed JSON value as proxy URIs: an object as one config line, an array element by element
-fn emit_json_value(v: &Json, fallback: &str, res: &mut Vec<String>) {
+// Emit only links from a JSON value. Config metadata (routing, DNS, inbounds, etc.) is
+// intentionally ignored because it has no representation in a single proxy URI.
+fn emit_json_value(v: &Json, res: &mut Vec<String>) {
     match v {
         Json::Arr(items) => {
             for el in items {
-                match el {
-                    Json::Obj(_) => {
-                        res.push(process_json(el).unwrap_or_else(|| stringify_compact(el)));
-                    }
-                    Json::Null => {}
-                    Json::Str(s) => {
-                        let st = s.trim();
-                        if !st.is_empty() {
-                            res.push(st.to_string());
-                        }
-                    }
-                    other => {
-                        let st = stringify_compact(other);
-                        let trimmed = st.trim();
-                        if !trimmed.is_empty() {
-                            res.push(trimmed.to_string());
-                        }
-                    }
-                }
+                emit_json_value(el, res);
             }
         }
-        Json::Obj(_) => match process_json(v) {
-            Some(c) => res.push(c),
-            None => res.push(fallback.to_string()),
-        },
-        _ => res.push(fallback.to_string()),
+        Json::Obj(_) => process_json_all(v, "", res),
+        Json::Str(s) => {
+            let st = s.trim();
+            if !st.is_empty() && PROXY_SCHEMES.iter().any(|scheme| starts_with_ci(st, scheme)) {
+                res.push(st.to_string());
+            }
+        }
+        Json::Null | Json::Bool(_) | Json::Num(_) => {}
     }
+}
+
+// Remove exact duplicate output lines while preserving the first occurrence and source order.
+fn dedupe_lines(lines: Vec<String>) -> String {
+    let mut seen = HashSet::new();
+    let mut unique = Vec::with_capacity(lines.len());
+    for line in lines {
+        let normalized = line.trim();
+        if !normalized.is_empty() && seen.insert(normalized.to_string()) {
+            unique.push(normalized.to_string());
+        }
+    }
+    unique.join("\n")
 }
 
 fn convert_depth(input: &str, json_to_uri: bool, try_base64: bool, depth: usize) -> String {
@@ -120,8 +120,8 @@ fn convert_depth(input: &str, json_to_uri: bool, try_base64: bool, depth: usize)
         if (whole.starts_with('{') || whole.starts_with('['))
             && let Some(v) = parse_whole(whole) {
                 let mut res: Vec<String> = Vec::new();
-                emit_json_value(&v, whole, &mut res);
-                return res.join("\n").trim().to_string();
+                emit_json_value(&v, &mut res);
+                return dedupe_lines(res);
             }
     }
 
@@ -138,16 +138,23 @@ fn convert_depth(input: &str, json_to_uri: bool, try_base64: bool, depth: usize)
                 continue;
             }
 
-        if json_to_uri && (t.starts_with('{') || t.starts_with('['))
-            && let Some(v) = parse_whole(t) {
-                emit_json_value(&v, t, &mut res);
-                continue;
+        if json_to_uri && (t.starts_with('{') || t.starts_with('[')) {
+            if let Some(v) = parse_whole(t) {
+                emit_json_value(&v, &mut res);
             }
+            // A JSON-looking line that cannot be parsed is not a proxy link; do not leak it
+            // into URI output as raw text.
+            continue;
+        }
 
         res.push(t.to_string());
     }
 
-    res.join("\n").trim().to_string()
+    if json_to_uri {
+        dedupe_lines(res)
+    } else {
+        res.join("\n").trim().to_string()
+    }
 }
 
 // Decode as base64 only if the result is real UTF-8 text that looks like configs or a proxy list
@@ -216,47 +223,124 @@ fn try_decode_base64(input: &str) -> Option<String> {
     }
 }
 
-// JSON outbound to a proxy URI
-fn process_json(root: &Json) -> Option<String> {
-    if is_shadowsocks(root) {
-        return build_shadowsocks(root, &root.opt_str("remarks", ""));
+// Process a single outbound object into one URI, if its protocol is supported.
+fn process_json_one(ob: &Json, rem: &str) -> Option<String> {
+    if is_shadowsocks(ob) {
+        return build_shadowsocks(ob, &ob.opt_str("remarks", rem));
     }
 
-    let protocol = root.opt_str("protocol", &root.opt_str("type", ""));
+    let protocol = ob.opt_str("protocol", &ob.opt_str("type", ""));
     match protocol.as_str() {
-        "vmess" => return build_vmess(root, &root.opt_str("tag", &root.opt_str("remarks", ""))),
-        "tuic" => return build_tuic(root, &root.opt_str("tag", &root.opt_str("remarks", ""))),
-        _ => {}
+        "vless" => build_vless(ob, rem),
+        "vmess" => build_vmess(ob, &ob.opt_str("tag", &ob.opt_str("remarks", rem))),
+        "trojan" => build_trojan(ob, rem),
+        "hysteria" => build_xray_hysteria2(ob, rem),
+        "hysteria2" => build_hysteria2(ob, rem),
+        "tuic" => build_tuic(ob, &ob.opt_str("tag", &ob.opt_str("remarks", rem))),
+        _ => None,
     }
+}
 
-    if let Some(obs) = root.opt_arr("outbounds") {
-        let rem = root.opt_str("remarks", "");
-        for ob in obs.arr_items() {
-            if !ob.is_obj() {
-                continue;
-            }
-            let p = ob.opt_str("protocol", &ob.opt_str("type", ""));
-            let c = match p.as_str() {
-                "vless" => build_vless(ob, &rem),
-                "vmess" => build_vmess(ob, &rem),
-                "shadowsocks" => build_shadowsocks(ob, &rem),
-                "trojan" => build_trojan(ob, &rem),
-                "hysteria2" => build_hysteria2(ob, &rem),
-                "tuic" => build_tuic(ob, &rem),
-                _ => {
-                    if is_shadowsocks(ob) {
-                        build_shadowsocks(ob, &rem)
+// Xray allows several vnext/servers (and several VLESS/VMess users) in one outbound.
+// Split those into independent outbound values so every usable endpoint becomes a URI.
+fn process_json_outbound_all(ob: &Json, rem: &str, res: &mut Vec<String>) {
+    let protocol = ob.opt_str("protocol", &ob.opt_str("type", ""));
+    if matches!(protocol.as_str(), "vless" | "vmess") {
+        if let Some(settings) = ob.opt_obj("settings") {
+            if let Some(vnext) = settings.opt_arr("vnext") {
+                for vn in vnext.arr_items() {
+                    if let Some(users) = vn.opt_arr("users") {
+                        for user in users.arr_items() {
+                            let mut one_vn = vn.clone();
+                            one_vn.set("users", Json::Arr(vec![user.clone()]));
+                            let mut one_settings = settings.clone();
+                            one_settings.set("vnext", Json::Arr(vec![one_vn]));
+                            let mut one_outbound = ob.clone();
+                            one_outbound.set("settings", one_settings);
+                            if let Some(uri) = process_json_one(&one_outbound, rem) {
+                                res.push(uri);
+                            }
+                        }
                     } else {
-                        None
+                        let mut one_settings = settings.clone();
+                        one_settings.set("vnext", Json::Arr(vec![vn.clone()]));
+                        let mut one_outbound = ob.clone();
+                        one_outbound.set("settings", one_settings);
+                        if let Some(uri) = process_json_one(&one_outbound, rem) {
+                            res.push(uri);
+                        }
                     }
                 }
-            };
-            if let Some(link) = c {
-                return Some(link);
+                return;
             }
         }
     }
-    None
+
+    if matches!(protocol.as_str(), "shadowsocks" | "trojan" | "hysteria2") {
+        if let Some(settings) = ob.opt_obj("settings") {
+            if let Some(servers) = settings.opt_arr("servers") {
+                for server in servers.arr_items() {
+                    let mut one_settings = settings.clone();
+                    one_settings.set("servers", Json::Arr(vec![server.clone()]));
+                    let mut one_outbound = ob.clone();
+                    one_outbound.set("settings", one_settings);
+                    if let Some(uri) = process_json_one(&one_outbound, rem) {
+                        res.push(uri);
+                    }
+                }
+                return;
+            }
+        }
+    }
+
+    if let Some(uri) = process_json_one(ob, rem) {
+        res.push(uri);
+    }
+}
+
+// Walk Xray/sing-box JSON, taking only supported proxy outbounds and discarding all other
+// configuration sections and unsupported outbounds. The parent remarks label is retained.
+fn process_json_all(root: &Json, inherited_remark: &str, res: &mut Vec<String>) {
+    match root {
+        Json::Arr(items) => {
+            for item in items {
+                process_json_all(item, inherited_remark, res);
+            }
+        }
+        Json::Obj(_) => {
+            let own_protocol = root.opt_str("protocol", &root.opt_str("type", ""));
+            if !own_protocol.is_empty() || is_shadowsocks(root) {
+                let rem = root.opt_str("remarks", &root.opt_str("tag", inherited_remark));
+                process_json_outbound_all(root, &rem, res);
+                return;
+            }
+
+            if let Some(outbounds) = root.opt_arr("outbounds") {
+                let parent_remark = root.opt_str("remarks", inherited_remark);
+                for outbound in outbounds.arr_items() {
+                    if !outbound.is_obj() {
+                        continue;
+                    }
+                    let rem = outbound.opt_str("remarks", &parent_remark);
+                    process_json_outbound_all(outbound, &rem, res);
+                }
+            }
+
+            // Some subscription providers expose their proxy entries as a top-level
+            // `servers` array instead of Xray's `outbounds` array. Treat each entry as
+            // an independent candidate and ignore the rest of the config metadata.
+            if let Some(servers) = root.opt_arr("servers") {
+                let parent_remark = root.opt_str("remarks", inherited_remark);
+                for server in servers.arr_items() {
+                    if server.is_obj() {
+                        let rem = server.opt_str("remarks", &server.opt_str("tag", &parent_remark));
+                        process_json_outbound_all(server, &rem, res);
+                    }
+                }
+            }
+        }
+        Json::Null | Json::Bool(_) | Json::Num(_) | Json::Str(_) => {}
+    }
 }
 
 fn is_shadowsocks(obj: &Json) -> bool {
@@ -494,6 +578,53 @@ fn build_trojan(ob: &Json, rem: &str) -> Option<String> {
     ))
 }
 
+// Xray's `hysteria` protocol with version=2 maps to a Hysteria 2 URI.
+// Version 1 is deliberately skipped because it is not interchangeable with Hysteria 2.
+fn build_xray_hysteria2(ob: &Json, rem: &str) -> Option<String> {
+    let settings = ob.opt_obj("settings")?;
+    let address = settings.get_str("address")?;
+    let port = settings.get_int("port")?;
+    let stream = ob.opt_obj("streamSettings")?;
+    let hysteria = stream.opt_obj("hysteriaSettings")?;
+    let version = settings.opt_int("version", hysteria.opt_int("version", 1));
+    if version != 2 {
+        return None;
+    }
+    let auth = hysteria.opt_str("auth", "");
+    let tls = stream.opt_obj("tlsSettings");
+
+    let mut query: Vec<(String, String)> = Vec::new();
+    if let Some(tls) = tls {
+        let sni = tls.opt_str("serverName", "");
+        if !sni.is_empty() {
+            query.push(("sni".to_string(), sni));
+        }
+        if let Some(alpn) = tls.opt_arr("alpn") {
+            if let Some(Json::Str(first)) = alpn.arr_items().first() {
+                query.push(("alpn".to_string(), first.clone()));
+            }
+        }
+        if tls.opt_bool("allowInsecure", false) {
+            query.push(("insecure".to_string(), "1".to_string()));
+        }
+    }
+    query.sort_by(|a, b| a.0.cmp(&b.0));
+    let query_string = if query.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", query.iter().map(|(k, v)| format!("{}={}", k, url_encode(v))).collect::<Vec<_>>().join("&"))
+    };
+    let auth_prefix = if auth.is_empty() { String::new() } else { format!("{}@", url_encode(&auth)) };
+    Some(format!(
+        "hysteria2://{}{}:{}/{}#{}",
+        auth_prefix,
+        address,
+        port,
+        query_string,
+        url_encode_remarks(rem),
+    ))
+}
+
 // Hysteria2: password@host:port with an obfs/sni query.
 fn build_hysteria2(ob: &Json, rem: &str) -> Option<String> {
     let settings = ob.opt_obj("settings")?;
@@ -505,7 +636,10 @@ fn build_hysteria2(ob: &Json, rem: &str) -> Option<String> {
 
     let ss = ob.opt_obj("streamSettings");
     let hy2 = ss.and_then(|s| s.opt_obj("hy2Settings"));
-    let password = hy2.map(|h| h.opt_str("password", "")).unwrap_or_default();
+    let password = server.opt_str(
+        "password",
+        &hy2.map(|h| h.opt_str("password", "")).unwrap_or_default(),
+    );
     let obfs = hy2.and_then(|h| h.opt_obj("obfs"));
     let obfs_type = obfs.map(|o| o.opt_str("type", "")).unwrap_or_default();
     let obfs_password = obfs.map(|o| o.opt_str("password", "")).unwrap_or_default();
@@ -1211,4 +1345,71 @@ fn convert_with_stats(
         res.push('\n');
     }
     (res.trim().to_string(), skipped)
+}
+
+
+#[cfg(test)]
+mod uri_cleanup_tests {
+    use super::*;
+
+    #[test]
+    fn uri_extracts_supported_xray_hysteria2_and_drops_config_metadata() {
+        let input = r#"{
+            "dns":{"servers":["1.1.1.1"]},
+            "routing":{"rules":[{"type":"field","outboundTag":"direct"}]},
+            "inbounds":[{"protocol":"socks","port":10808}],
+            "outbounds":[
+                {"tag":"proxy","protocol":"hysteria","settings":{"address":"test.example","port":30443,"version":2},"streamSettings":{"network":"hysteria","hysteriaSettings":{"version":2,"auth":"secret"},"security":"tls","tlsSettings":{"serverName":"sni.example","alpn":["h3"]}}},
+                {"tag":"direct","protocol":"freedom"},
+                {"tag":"block","protocol":"blackhole"}
+            ],
+            "remarks":"Gaming"
+        }"#;
+
+        let result = convert(input, ConvertOps::LINKS);
+        assert_eq!(result, "hysteria2://secret@test.example:30443/?alpn=h3&sni=sni.example#Gaming");
+        assert!(!result.contains("routing"));
+        assert!(!result.contains("inbounds"));
+        assert!(!result.contains("outbounds"));
+    }
+
+    #[test]
+    fn uri_converts_multiple_json_documents_and_removes_duplicate_uris() {
+        let fi = r#"{"outbounds":[{"tag":"proxy","protocol":"hysteria","settings":{"address":"fi.example","port":30443,"version":2},"streamSettings":{"hysteriaSettings":{"auth":"secret-fi"},"tlsSettings":{"serverName":"sni.example"}}}],"remarks":"Finland"}"#;
+        let ee = r#"{"outbounds":[{"tag":"proxy","protocol":"hysteria","settings":{"address":"ee.example","port":30443,"version":2},"streamSettings":{"hysteriaSettings":{"auth":"secret-ee"},"tlsSettings":{"serverName":"sni.example"}}}],"remarks":"Estonia"}"#;
+        let input = format!("{fi}\n{ee}\n{fi}");
+
+        let result = convert(&input, ConvertOps::LINKS);
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("hysteria2://secret-fi@fi.example:30443"));
+        assert!(lines[1].starts_with("hysteria2://secret-ee@ee.example:30443"));
+        assert!(!result.contains("outbounds"));
+    }
+
+    #[test]
+    fn uri_extracts_every_outbound_and_deduplicates_exact_links() {
+        let cfg = r#"{"outbounds":[
+            {"protocol":"vless","settings":{"vnext":[{"address":"one.example","port":443,"users":[{"id":"11111111-2222-3333-4444-555555555555"}]}]}},
+            {"protocol":"freedom"},
+            {"protocol":"vless","settings":{"vnext":[{"address":"one.example","port":443,"users":[{"id":"11111111-2222-3333-4444-555555555555"}]}]}}
+        ]}"#;
+        let result = convert(cfg, ConvertOps::LINKS);
+        let lines: Vec<&str> = result.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].starts_with("vless://11111111-2222-3333-4444-555555555555@one.example:443"));
+    }
+
+    #[test]
+    fn uri_extracts_supported_entries_from_top_level_servers() {
+        let cfg = r#"{"remarks":"Servers","servers":[
+            {"protocol":"vless","settings":{"vnext":[{"address":"one.example","port":443,"users":[{"id":"11111111-2222-3333-4444-555555555555"}]}]}},
+            {"protocol":"freedom"}
+        ],"routing":{"rules":[]}}"#;
+
+        let result = convert(cfg, ConvertOps::LINKS);
+        assert_eq!(result.lines().count(), 1);
+        assert!(result.starts_with("vless://11111111-2222-3333-4444-555555555555@one.example:443"));
+        assert!(!result.contains("routing"));
+    }
 }

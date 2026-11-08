@@ -48,12 +48,13 @@ ARGUMENTS:
   v2 / v2r / v2ray / v2raytun
 
 ── Fetch ──────────────────────────
-Fetches the link when hwid, ua, or fetch is passed, or when a convert mode follows an http(s) URL.
-hwid and ua are optional request headers.
+Fetches the link when hwid, ua, header, or fetch is passed, or when a convert mode follows an http(s) URL.
+Headers can be supplied repeatedly with header <name> <value>.
 FETCH:
   hpwnr https://… fetch
   hpwnr https://… hwid 123abc
   hpwnr https://… hwid 123abc ua happ
+  hpwnr https://… header X-Device-Model "Pixel 8" header X-Device-OS Android
   hpwnr v2raytun://… hwid abc123 ua v2ray
   hpwnr happ://… hwid abc123 ua "My/Custom/UA"
 
@@ -192,6 +193,8 @@ struct ParsedArgs {
     #[cfg(feature = "fetch")]
     ua: String,
     #[cfg(feature = "fetch")]
+    headers: Vec<(String, String)>,
+    #[cfg(feature = "fetch")]
     fetch: bool,
     conv: Option<ConvertMode>,
 }
@@ -207,6 +210,8 @@ fn parse_all_args(args: &[String]) -> ParsedArgs {
         hwid: String::new(),
         #[cfg(feature = "fetch")]
         ua: String::new(),
+        #[cfg(feature = "fetch")]
+        headers: Vec::new(),
         #[cfg(feature = "fetch")]
         fetch: false,
         conv: None,
@@ -237,6 +242,16 @@ fn parse_all_args(args: &[String]) -> ParsedArgs {
                     p.ua = args[i + 1].clone();
                     i += 2;
                 } else {
+                    i += 1;
+                }
+            }
+            #[cfg(feature = "fetch")]
+            "header" => {
+                if i + 2 < args.len() {
+                    p.headers.push((args[i + 1].clone(), args[i + 2].clone()));
+                    i += 3;
+                } else {
+                    eprintln!("warning: header requires a name and value");
                     i += 1;
                 }
             }
@@ -475,6 +490,7 @@ fn run() -> i32 {
     if p.fetch
         || !p.hwid.is_empty()
         || !p.ua.is_empty()
+        || !p.headers.is_empty()
         || (p.conv.is_some() && p.texts.len() == 1 && is_http_url(&p.texts[0]))
     {
         if p.texts.is_empty() {
@@ -490,7 +506,15 @@ fn run() -> i32 {
                 return 1;
             }
         };
-        match hpwnr::fetch(&target, &p.ua, &p.hwid) {
+        let mut headers = Vec::new();
+        if !p.ua.is_empty() {
+            headers.push(("User-Agent".to_string(), hpwnr::resolve_user_agent(&p.ua)));
+        }
+        if !p.hwid.is_empty() {
+            headers.push(("X-HWID".to_string(), p.hwid.clone()));
+        }
+        headers.extend(p.headers.iter().cloned());
+        match hpwnr::fetch_with_headers(&target, &headers) {
             Ok(body) => {
                 // uri is the default when fetching; use `raw` to opt out of conversion.
                 let default_mode = ConvertMode::Ops(ConvertOps::ALL);

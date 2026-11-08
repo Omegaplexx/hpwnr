@@ -11,7 +11,7 @@ Developed by slavrom21 & Omegaplex
 * Decrypt `v2raytun://crypt/` links. Supported keys: `crypt3`, `crypt4`, `key3`
 * Encrypt plaintext back into any of those formats
 * Resolve wrapper/redirect links: `happ://add/`, `v2raytun://import/`, `incy://add/`, `incy://import/`, and `happ://` or `v2raytun://` links embedded in `http(s)` URLs
-* Fetch subscription profiles over HTTP (custom User-Agent / X-HWID) and automatically decrypt the AES-128-GCM body layer *(full build only, see [Variants](#variants))*
+* Fetch subscription profiles over HTTP with User-Agent, X-HWID, and arbitrary custom request headers; automatically decrypt the AES-128-GCM body layer *(full build only, see [Variants](#variants))*
 * Convert Xray configs into `vless`/`vmess`/`trojan`/`hy2`/`ss`/`tuic` links, or into a merged **sing-box** config
 
 
@@ -19,15 +19,15 @@ Developed by slavrom21 & Omegaplex
 
 hpwnr builds in two flavors, selected with a Cargo feature:
 
-* **full** (default) — everything above, including HTTP fetch and AES-128-GCM response decryption. Pulls in a TLS stack (`ureq` + `ring`).
-* **lite** (`--no-default-features`) — crypt/decrypt and convert only, with the whole network stack removed: no fetch, no AES response layer, no User-Agent/HWID handling. It has no C dependencies, which makes it roughly a third of the size (~0.8 MB vs ~2.1 MB) and portable to far more targets.
+* **full** (default) — everything above, including HTTP fetch and AES-128-GCM response decryption. Uses rustls/ring.
+* **lite** (`--no-default-features`) — crypt/decrypt and convert only, with the whole network stack removed: no fetch, no AES response layer, and no request-header handling. It has no C dependencies, which makes it roughly a third of the size (~0.8 MB vs ~2.1 MB) and portable to far more targets.
 
 ```bash
 cargo build --release                        # full
 cargo build --release --no-default-features  # lite
 ```
 
-The `fetch` feature is what carries the network stack; `default = ["fetch"]`, so dropping default features gives the lite build.
+The default features enable `fetch`. Dropping default features gives the lite build.
 
 
 ## Usage
@@ -62,11 +62,12 @@ No arguments needed. Use `hpwnr <crypt link>` to decrypt.
 
 *Full build only (omitted from the lite variant).*
 
-A link is fetched when you pass `fetch`, `hwid`, or `ua`, or when a convert mode (`sb`/`uri`/`b64`/`raw`) follows an `http(s)` URL. It is resolved and decrypted first if needed, then requested.
+A link is fetched when you pass `fetch`, `hwid`, `ua`, or `header`, or when a convert mode (`sb`/`uri`/`b64`/`raw`) follows an `http(s)` URL. It is resolved and decrypted first if needed, then requested.
 
-* `fetch` - fetch the link with no extra headers (use when you do not need `hwid`/`ua`)
+* `fetch` - fetch the link with no extra headers
 * `hwid <value>` - fetch and send the `X-HWID` header. Usually paired with `ua`
-* `ua <happ / incy / v2 / "MyCustomUA">` - fetch and send the `User-Agent` header. Aliases: `happ` → `Happ/3.26.1`, `incy` → `INCY/3.3.1`, `v2` / `v2r` / `v2ray` / `v2raytun` → `v2raytun/android`
+* `ua <happ / incy / v2 / "MyCustomUA">` - fetch and send the `User-Agent` header. Aliases: `happ` → `Happ/4.6.0`, `incy` → `INCY/3.7.0`, `v2` / `v2r` / `v2ray` / `v2raytun` → `v2raytun/android`
+* `header <name> <value>` - add any HTTP request header. Repeat it to send multiple headers, e.g. `header X-Device-Model "Pixel 8" header X-Device-OS Android`. Custom header entries are sent after the built-in `ua`/`hwid` entries.
 
 #### Conversion
 
@@ -74,7 +75,7 @@ Conversion runs on a fetched profile, on a local file, or on stdin. A convert mo
 
 * `raw` - return the response as is, no conversion
 * `b64` - same, but decode Base64 if needed
-* `uri` - convert Xray configs to `vless`/`vmess`/`trojan`/`hy2`/`ss`/`tuic` links (default)
+* `uri` - convert supported Xray outbounds to `vless`/`vmess`/`trojan`/`hy2`/`ss`/`tuic` links (default). All convertible outbounds/servers are emitted; unsupported outbounds and non-URI config sections (routing, DNS, inbounds, etc.) are discarded. Exact duplicate URI lines are removed while preserving order. Xray `hysteria` with `version: 2` is converted to a Hysteria 2 URI.
 * `sb` - convert Xray configs to a merged sing-box config (unsupported outbounds are skipped)
 
 Combine `sb` and `uri` to get only sing-box-compatible URIs: unsupported outbounds are dropped and vless flow is normalized to a sing-box-valid form.
@@ -117,7 +118,7 @@ hpwnr https://example.com/sub v2r crypt4
 hpwnr https://example.com/sub fetch
 hpwnr https://example.com/sub hwid abc123
 hpwnr https://example.com/sub hwid abc123 ua happ
-hpwnr https://example.com/sub hwid f8xdh2e6d5140zv7 ua "My/Custom/UA"
+hpwnr https://example.com/sub ua "Happ/4.8.0/Android/17921395329952009531" header x-device-os Android header x-ver-os 17 header x-device-model WKL-AN80 header x-device-locale ru uri
 ```
 
 #### Conversion
@@ -146,13 +147,15 @@ Cross-compile with [`cross`](https://github.com/cross-rs/cross), which supplies 
 ```bash
 cross build --release --target aarch64-linux-android
 cross build --release --target x86_64-unknown-linux-musl
+# Full, statically linked ARMv5 build
+docker buildx build --target export --output type=local,dest=./dist -f Dockerfile.armv5 .
 ```
 
 The release profile is size-optimized and stripped; musl targets are statically linked. Add `--no-default-features` to any of these commands to build the lite variant instead.
 
 ### Supported platforms
 
-Both variants build for every mainstream target: musl Linux (`x86_64`/`i686`/`aarch64`/`armv7`/`riscv64`), Windows (gnu/MinGW, `x86_64` and `i686`), every Android ABI (`aarch64`/`armv7`/`x86_64`/`i686`), and macOS and iOS (linked on a Mac). Because lite has no C dependencies it also reaches targets the full build cannot, such as ARMv6 (`arm-unknown-linux-musleabihf`) and WebAssembly (`wasm32-wasip1`).
+Full and lite builds share these targets: musl Linux (`x86_64`/`i686`/`aarch64`/`armv7`/`armv5`/`riscv64`), Windows (gnu/MinGW, `x86_64` and `i686`), Android (`aarch64`/`armv7`/`x86_64`/`i686`), and macOS and iOS (linked on a Mac). Lite also builds for ARMv6 (`arm-unknown-linux-musleabihf`) and WebAssembly (`wasm32-wasip1`). Linux musl binaries, including full ARMv5, are statically linked.
 
 Two manual GitHub Actions workflows build both variants for all of these targets. `.github/workflows/release.yml` publishes them to a GitHub Release, with assets named `hpwnr-<platform>` (full) and `hpwnr-lite-<platform>` (lite). `.github/workflows/build.yml` builds without releasing: by default it uploads each binary as its own artifact, or, with its `individual_binaries` option turned off, collects them into two zip archives (`hpwnr_v<version>` and `hpwnr-lite_v<version>`).
 
@@ -161,17 +164,18 @@ Two manual GitHub Actions workflows build both variants for all of these targets
 
 ```toml
 [dependencies]
-hpwnr = "1.0.0"
+hpwnr = "1.0.4"
 ```
 
 ```rust
-use hpwnr::{decrypt, encrypt_happ, encrypt_crypt5_legacy, encrypt_v2, fetch, unwrap_link, inspect, convert, ConvertOps, HappMode, V2Key};
+use hpwnr::{decrypt, encrypt_happ, encrypt_crypt5_legacy, encrypt_v2, fetch, fetch_with_headers, unwrap_link, inspect, convert, ConvertOps, HappMode, V2Key};
 
 let link  = encrypt_happ(HappMode::Crypt5, "https://example.com/sub")?; // crypt5 = new salted layout
 let old   = encrypt_crypt5_legacy("https://example.com/sub")?;          // legacy crypt5 layout
 let plain = decrypt(&link)?;                        // happ and v2raytun
 let real  = unwrap_link("happ://add/…");            // resolve wrappers/redirects
 let body  = fetch(&plain, "happ", "HWID123")?;      // download + strip AES-GCM
+let custom = fetch_with_headers(&plain, &[("X-Device-OS".into(), "Android".into())])?;
 let info  = inspect(&link);                         // classify without decrypting
 let norm  = convert(subscription, ConvertOps::ALL); // JSON outbounds -> proxy URIs
 let sb    = convert(subscription, ConvertOps::SINGBOX | ConvertOps::BASE64); // Xray -> sing-box
@@ -192,11 +196,11 @@ if let Some(plain) = resolve_and_decrypt("happ://add/…")? {
 
 All fallible calls return `Result<T, hpwnr::Error>`; `Error` is a plain `enum` you can `match` on. `ConvertOps` values (`LINKS`, `BASE64`, `ALL`, `SINGBOX`) combine with `|`.
 
-The `fetch` and `decrypt_response_body` functions, along with the `AesGcm` / `AesTagLen` / `Http` error variants, require the default `fetch` feature. For a library without the bundled HTTP/TLS stack (matching the lite CLI variant), disable it:
+The `fetch`, `fetch_with_headers`, and `decrypt_response_body` functions, along with the `AesGcm` / `AesTagLen` / `Http` error variants, require the default `fetch` feature. For a library without the bundled HTTP/TLS stack (matching the lite CLI variant), disable it:
 
 ```toml
 [dependencies]
-hpwnr = { version = "1.0.0", default-features = false }
+hpwnr = { version = "1.0.4", default-features = false }
 ```
 
 Every public item is documented; run `cargo doc --open` for the full API reference.
