@@ -150,7 +150,7 @@ Cross-compile with [`cross`](https://github.com/cross-rs/cross), which supplies 
 cross build --release --target aarch64-linux-android
 cross build --release --target x86_64-unknown-linux-musl
 # Full, statically linked ARMv5 build
-docker buildx build --target export --output type=local,dest=./dist -f Dockerfile.armv5 .
+cross build --release --target armv5te-unknown-linux-musleabi
 ```
 
 The release profile is size-optimized and stripped; musl targets are statically linked. Add `--no-default-features` to any of these commands to build the lite variant instead.
