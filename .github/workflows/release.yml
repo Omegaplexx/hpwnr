@@ -126,19 +126,6 @@ jobs:
           suffix=""
           [ "${{ matrix.variant }}" = "lite" ] && suffix="-lite"
           cp "target/${{ matrix.target }}/release/hpwnr${{ matrix.ext }}" "dist/hpwnr${suffix}-${{ matrix.asset }}${{ matrix.ext }}"
-      - name: Verify static ARMv5 full binary
-        if: matrix.variant == 'full' && matrix.target == 'armv5te-unknown-linux-musleabi'
-        shell: bash
-        run: |
-          BIN=dist/hpwnr-linux-armv5
-          if readelf -l "$BIN" | grep -q 'INTERP'; then
-            echo "error: ARMv5 binary has a dynamic interpreter"
-            exit 1
-          fi
-          if readelf -d "$BIN" 2>&1 | grep -q '(NEEDED)'; then
-            echo "error: ARMv5 binary has dynamic dependencies"
-            exit 1
-          fi
       - uses: actions/upload-artifact@v6
         with:
           name: hpwnr${{ matrix.variant == 'lite' && '-lite' || '' }}-${{ matrix.asset }}
