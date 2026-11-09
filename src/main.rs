@@ -48,14 +48,18 @@ ARGUMENTS:
   v2 / v2r / v2ray / v2raytun
 
 ── Fetch ──────────────────────────
-Fetches the link when hwid, ua, or fetch is passed, or when a convert mode follows an http(s) URL.
-hwid and ua are optional request headers.
+Fetches the link when hwid, ua, header, or fetch is passed, or when a convert mode follows an http(s) URL.
+Headers can be supplied repeatedly with header <name> <value>.
 FETCH:
   hpwnr https://… fetch
   hpwnr https://… hwid 123abc
   hpwnr https://… hwid 123abc ua happ
+  hpwnr https://… header X-Device-Model "Pixel 8" header X-Device-OS Android
+  hpwnr https://… uri stdout
   hpwnr v2raytun://… hwid abc123 ua v2ray
   hpwnr happ://… hwid abc123 ua "My/Custom/UA"
+
+stdout always prints fetched output to the console, even when it exceeds 15000 characters.
 
 USER-AGENT ALIASES:
   happ → Happ/4.6.0
@@ -83,7 +87,7 @@ Combine the sb and uri flags to output only sing-box-compatible links.
 ───────────────────────────────────
 If the decrypted URL carries ?key=keyNN and the server returns an Encrypt-Tag header, the response body is decrypted automatically (AES-128-GCM).
 
-If the server response is more than 15000 characters, it is saved to hpwnresp_<domain>.txt, overwritten each run; otherwise it is printed.
+If fetched output is more than 15000 characters, it is saved to hpwnresp_<domain>.txt, overwritten each run; add stdout to always print it instead.
 Converting a file writes a copy: <name>_<mode>.<ext> where <mode> is sb, uri, b64, or sb+uri, replacing any existing suffix.
 
 URL-encoded, Base64-encoded and wrapped Happ/v2RayTun links inside HTTPS URLs are resolved automatically.
@@ -192,7 +196,11 @@ struct ParsedArgs {
     #[cfg(feature = "fetch")]
     ua: String,
     #[cfg(feature = "fetch")]
+    headers: Vec<(String, String)>,
+    #[cfg(feature = "fetch")]
     fetch: bool,
+    #[cfg(feature = "fetch")]
+    stdout: bool,
     conv: Option<ConvertMode>,
 }
 
@@ -208,7 +216,11 @@ fn parse_all_args(args: &[String]) -> ParsedArgs {
         #[cfg(feature = "fetch")]
         ua: String::new(),
         #[cfg(feature = "fetch")]
+        headers: Vec::new(),
+        #[cfg(feature = "fetch")]
         fetch: false,
+        #[cfg(feature = "fetch")]
+        stdout: false,
         conv: None,
     };
     // First pass: v2 mode changes how crypt3/crypt4/key3 map to keys
@@ -241,8 +253,23 @@ fn parse_all_args(args: &[String]) -> ParsedArgs {
                 }
             }
             #[cfg(feature = "fetch")]
+            "header" => {
+                if i + 2 < args.len() {
+                    p.headers.push((args[i + 1].clone(), args[i + 2].clone()));
+                    i += 3;
+                } else {
+                    eprintln!("warning: header requires a name and value");
+                    i += 1;
+                }
+            }
+            #[cfg(feature = "fetch")]
             "fetch" => {
                 p.fetch = true;
+                i += 1;
+            }
+            #[cfg(feature = "fetch")]
+            "stdout" => {
+                p.stdout = true;
                 i += 1;
             }
             "v2" | "v2r" | "v2ray" | "v2raytun" => {
@@ -475,6 +502,7 @@ fn run() -> i32 {
     if p.fetch
         || !p.hwid.is_empty()
         || !p.ua.is_empty()
+        || !p.headers.is_empty()
         || (p.conv.is_some() && p.texts.len() == 1 && is_http_url(&p.texts[0]))
     {
         if p.texts.is_empty() {
@@ -490,7 +518,15 @@ fn run() -> i32 {
                 return 1;
             }
         };
-        match hpwnr::fetch(&target, &p.ua, &p.hwid) {
+        let mut headers = Vec::new();
+        if !p.ua.is_empty() {
+            headers.push(("User-Agent".to_string(), hpwnr::resolve_user_agent(&p.ua)));
+        }
+        if !p.hwid.is_empty() {
+            headers.push(("X-HWID".to_string(), p.hwid.clone()));
+        }
+        headers.extend(p.headers.iter().cloned());
+        match hpwnr::fetch_with_headers(&target, &headers) {
             Ok(body) => {
                 // uri is the default when fetching; use `raw` to opt out of conversion.
                 let default_mode = ConvertMode::Ops(ConvertOps::ALL);
@@ -498,7 +534,7 @@ fn run() -> i32 {
                 let output = apply_conv_mode(&body, mode);
                 // Large results go to one file per domain (overwritten each run); smaller ones print.
                 const MAX_INLINE: usize = 15000;
-                if output.len() > MAX_INLINE {
+                if output.len() > MAX_INLINE && !p.stdout {
                     let fname = fetch_file_name(&target);
                     if let Err(e) = std::fs::write(&fname, &output) {
                         eprintln!("error: could not write file: {e}");

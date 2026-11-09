@@ -6,3 +6,7 @@ rustflags = ["-C", "target-feature=+crt-static"]
 
 [target.i686-pc-windows-gnu]
 rustflags = ["-C", "target-feature=+crt-static"]
+
+# Make the ARMv5 musl release explicitly self-contained as well.
+[target.armv5te-unknown-linux-musleabi]
+rustflags = ["-C", "target-feature=+crt-static"]

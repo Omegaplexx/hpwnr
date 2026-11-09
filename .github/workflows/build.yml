@@ -17,8 +17,7 @@ permissions:
 #   lite  - build with no network stack: crypt/decrypt and convert only. Much smaller, far more portable.
 # By default every binary is uploaded as its own artifact (hpwnr-<platform> / hpwnr-lite-<platform>).
 # Turn "individual_binaries" off to instead collect them into two zips of binaries: hpwnr_v<ver> (full) and hpwnr-lite_v<ver> (lite).
-# full carries a C dependency (ring, via the TLS stack) so it is limited to the targets ring supports; lite has no
-# C deps and reaches more targets. Linux / Windows / Android build through `cross`; macOS and iOS on a macOS runner.
+# Linux / Windows / Android targets use `cross`; macOS and iOS build with cargo on a macOS runner.
 
 jobs:
   # Gate the build matrix on a green clippy and test run for both variants.
@@ -50,6 +49,7 @@ jobs:
           - { variant: full, target: i686-unknown-linux-musl,        asset: linux-x86,      os: ubuntu-latest, tool: cross }
           - { variant: full, target: aarch64-unknown-linux-musl,     asset: linux-arm64,    os: ubuntu-latest, tool: cross }
           - { variant: full, target: armv7-unknown-linux-musleabihf, asset: linux-armv7,    os: ubuntu-latest, tool: cross }
+          - { variant: full, target: armv5te-unknown-linux-musleabi, asset: linux-armv5,    os: ubuntu-latest, tool: cross }
           - { variant: full, target: riscv64gc-unknown-linux-musl,   asset: linux-riscv64,  os: ubuntu-latest, tool: cross }
           - { variant: full, target: x86_64-pc-windows-gnu,          asset: windows-x64,    os: ubuntu-latest, tool: cross, ext: .exe }
           - { variant: full, target: i686-pc-windows-gnu,            asset: windows-x86,    os: ubuntu-latest, tool: cross, ext: .exe }
@@ -69,6 +69,7 @@ jobs:
           - { variant: lite, target: aarch64-unknown-linux-musl,     asset: linux-arm64,    os: ubuntu-latest, tool: cross }
           - { variant: lite, target: armv7-unknown-linux-musleabihf, asset: linux-armv7,    os: ubuntu-latest, tool: cross }
           - { variant: lite, target: arm-unknown-linux-musleabihf,   asset: linux-armv6,    os: ubuntu-latest, tool: cross }
+          - { variant: lite, target: armv5te-unknown-linux-musleabi, asset: linux-armv5,    os: ubuntu-latest, tool: cross }
           - { variant: lite, target: riscv64gc-unknown-linux-musl,   asset: linux-riscv64,  os: ubuntu-latest, tool: cross }
           - { variant: lite, target: x86_64-pc-windows-gnu,          asset: windows-x64,    os: ubuntu-latest, tool: cross, ext: .exe }
           - { variant: lite, target: i686-pc-windows-gnu,            asset: windows-x86,    os: ubuntu-latest, tool: cross, ext: .exe }
